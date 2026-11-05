@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Карточки КИП — AI-помощник</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <div class="brand-title">Карточки КИП</div>
+      <div class="brand-sub">AI-помощник контент-менеджера</div>
+    </div>
+  </div>
+  <div class="status">
+    {% if status.api_key_configured %}
+      <span class="dot ok"></span>{{ status.provider }} · <code>{{ status.model }}</code>
+    {% elif status.error %}
+      <span class="dot bad"></span>{{ status.error }}
+    {% else %}
+      <span class="dot bad"></span>Ключ модели не задан — укажите его в .env
+    {% endif %}
+    <a href="/docs" target="_blank" rel="noopener">Swagger API</a>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ===== Панель ввода ===== -->
+  <section class="panel input-panel" aria-labelledby="input-title">
+    <div class="panel-head">
+      <h2 id="input-title">Данные о товаре</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-input-tab="form" role="tab">Форма</button>
+        <button class="tab" data-input-tab="json" role="tab">JSON</button>
+      </div>
+    </div>
+
+
+    <form id="product-form" autocomplete="off" novalidate>
+      <div data-input-view="form">
+        <label class="field">
+          <span>Название товара <b class="req">*</b></span>
+          <input name="name" placeholder="Манометр показывающий DM 02">
+        </label>
+        <div class="row-2">
+          <label class="field">
+            <span>Производитель</span>
+            <input name="manufacturer" placeholder="Манотомь">
+          </label>
+          <label class="field">
+            <span>Категория</span>
+            <input name="category" placeholder="Манометры технические">
+          </label>
+        </div>
+
+        <div class="field">
+          <span>Характеристики</span>
+          <div id="specs" class="specs"></div>
+          <button type="button" id="add-spec" class="link-btn">+ добавить характеристику</button>
+        </div>
+
+        <label class="field">
+          <span>Описание или фрагмент паспорта</span>
+          <textarea name="description" rows="6" placeholder="Прибор предназначен для измерения избыточного давления…"></textarea>
+        </label>
+
+        <div class="field">
+          <span>Фото товара <i>необязательно: файлом или ссылками, по одной в строке</i></span>
+          <div class="photo-tools">
+            <button type="button" id="upload-btn" class="ghost small">Загрузить фото</button>
+            <span class="muted">JPEG, PNG, WebP, GIF до 10 МБ</span>
+            <input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+          </div>
+          <div id="photo-previews" class="photo-previews"></div>
+          <textarea name="images" rows="2" placeholder="https://…/photo.jpg"></textarea>
+        </div>
+      </div>
+
+      <div data-input-view="json" hidden>
+        <label class="field">
+          <span>JSON товара</span>
+          <textarea id="json-input" rows="22" spellcheck="false" class="mono"></textarea>
+        </label>
+        <p class="hint">Отправляется как есть: некорректный JSON сервер вернёт с понятной ошибкой.</p>
+      </div>
+
+      <div class="actions">
+        <button type="submit" id="submit" class="primary">Сформировать карточку</button>
+        <button type="button" id="clear" class="ghost">Очистить</button>
+      </div>
+      <p id="input-error" class="inline-error" hidden></p>
+    </form>
+  </section>
+
+  <!-- ===== Панель вывода ===== -->
+  <section class="panel output-panel" aria-labelledby="output-title">
+    <div class="panel-head">
+      <h2 id="output-title">Черновик карточки</h2>
+      <div class="tabs" role="tablist" id="output-tabs" hidden>
+        <button class="tab active" data-output-tab="card" role="tab">Карточка</button>
+        <button class="tab" data-output-tab="markdown" role="tab">Markdown</button>
+        <button class="tab" data-output-tab="json" role="tab">JSON</button>
+      </div>
+    </div>
+
+    <div id="output-empty" class="empty">
+      <div class="empty-gauge" aria-hidden="true"></div>
+      <p>Заполните данные слева или выберите пример — здесь появится карточка товара.</p>
+      <p class="muted">Технические значения берутся только из ваших данных. Чего нет — будет помечено «данных нет».</p>
+    </div>
+
+    <div id="output-loading" class="empty" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Модель готовит карточку…</p>
+      <p class="muted">Обычно 5–20 секунд. Ответ проверяется автоматически и при необходимости переделывается.</p>
+    </div>
+
+    <div id="output-error" class="error-box" hidden></div>
+
+    <div id="output-result" hidden>
+      <div class="toolbar">
+        <button type="button" data-action="copy-md">Скопировать Markdown</button>
+        <button type="button" data-action="download-md">Скачать .md</button>
+        <button type="button" data-action="download-json">Скачать .json</button>
+        <button type="button" data-action="print">Печать / PDF</button>
+      </div>
+      <div data-output-view="card"><article id="card" class="card"></article></div>
+      <div data-output-view="markdown" hidden><pre id="markdown-view" class="code"></pre></div>
+      <div data-output-view="json" hidden><pre id="json-view" class="code"></pre></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
